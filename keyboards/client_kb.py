@@ -1,11 +1,38 @@
 from aiogram.types import InlineKeyboardMarkup, KeyboardButton, InlineKeyboardButton
+from handlers import client
+
+fz_no = ["44-ФЗ", "223-ФЗ", "94-ФЗ", "ПП РФ 615"]
+fz_yes = ["44-ФЗ ✅", "223-ФЗ ✅", "94-ФЗ ✅", "ПП РФ 615 ✅"]
 
 
-async def answer_start(kb_inline):
+async def answer_start_f():
+    kb_inline = InlineKeyboardMarkup()
+    b1 = InlineKeyboardButton(text='Поиск', callback_data='search_change_menu')
+    kb_inline.add(b1)
+    await answer_add_button_cansel_f(kb_inline)
     return kb_inline
 
 
-async def answer_cansel(kb_inline):
+async def answer_after_chose_search_f(modify: list):
+    kb_inline = InlineKeyboardMarkup()
+    buttons = []
+    for i in range(len(modify)):
+        if modify[i] == 1:
+            clb_d_str = 'search_change_settings_' + str(i)
+            b = InlineKeyboardButton(text=fz_yes[i], callback_data=client.cb_modify_search.new(msg_text=clb_d_str))
+            buttons.append(b)
+        else:
+            clb_d_str = 'search_change_settings_' + str(i)
+            b = InlineKeyboardButton(text=fz_no[i], callback_data=client.cb_modify_search.new(msg_text=clb_d_str))
+            buttons.append(b)
+    b5 = InlineKeyboardButton(text='Поиск', callback_data='search_begin')
+    for item in buttons:
+        kb_inline.row(item)
+    kb_inline.add(b5)
+    await answer_add_button_cansel_f(kb_inline)
+    return kb_inline
+
+
+async def answer_add_button_cansel_f(kb_inline):
     back = InlineKeyboardButton(text='🔙 отмена', callback_data='cansel')
     kb_inline.add(back)
-    return kb_inline
