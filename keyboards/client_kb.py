@@ -1,8 +1,8 @@
 from aiogram.types import InlineKeyboardMarkup, KeyboardButton, InlineKeyboardButton
 from handlers import client
 
-fz_no = ["44-ФЗ", "223-ФЗ", "94-ФЗ", "ПП РФ 615"]
-fz_yes = ["44-ФЗ ✅", "223-ФЗ ✅", "94-ФЗ ✅", "ПП РФ 615 ✅"]
+fz_no = ["44-ФЗ", "223-ФЗ", "94-ФЗ", "ПП РФ 615", "Отправить файлом"]
+fz_yes = ["44-ФЗ ✅", "223-ФЗ ✅", "94-ФЗ ✅", "ПП РФ 615 ✅", "Отправить файлом ✅"]
 
 
 async def answer_start_f():
@@ -30,6 +30,13 @@ async def answer_after_chose_search_f(modify: list):
         kb_inline.row(item)
     kb_inline.add(b5)
     await answer_add_button_cansel_f(kb_inline)
+    return kb_inline
+
+
+async def answer_search_link(link: str):
+    kb_inline = InlineKeyboardMarkup()
+    b = InlineKeyboardButton(text='Перейти', url=link)
+    kb_inline.add(b)
     return kb_inline
 
 
