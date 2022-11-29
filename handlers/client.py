@@ -1,21 +1,27 @@
 import asyncio
-import os, json
+import json
+import os
+import datetime
+from datetime import date
+import pandas as pd
 from aiogram import Dispatcher
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils.callback_data import CallbackData
 from aiogram.utils.exceptions import InvalidQueryID
+from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
-import pandas as pd
+
 from create_bot import bot
 from keyboards import client_kb
-from selenium.webdriver import Chrome
 
 cb_modify_search = CallbackData('post', 'msg_text')
 
 path_to_driver = os.getcwd() + "/" + "drivers/chromedriver.exe"
 path_to_clients = os.getcwd() + "/" + "json/clients/"
+path_to_admins_statistics = os.getcwd() + "/" + "json/admins/statistics"
+path_to_admins_settings = os.getcwd() + "/" + "json/admins/settings"
 
 
 class FSMClient(StatesGroup):
@@ -35,6 +41,32 @@ class FSMClient(StatesGroup):
 
 
 async def main_menu_message_f(message: types.Message, state: FSMContext):
+    global path_to_admins_statistics
+    path_to_statistics_clients = path_to_admins_statistics + "/clients.json"
+    path_to_statistics_search = path_to_admins_statistics + "/search.json"
+    with open(path_to_statistics_clients, 'r', encoding='cp1251') as file:
+        current_statistics_clients = json.load(file)
+    current_statistics_clients["Counts_clients_all_time"] += 1
+    current_date = date.today()
+    print("AA")
+    print(current_date)
+    print(current_date.month)
+    print(current_date.isoweekday)
+    print(current_date.day)
+    if current_statistics_clients["Current_month"] != current_date.month:
+        current_statistics_clients["Current_month"] = current_date.month
+        current_statistics_clients["Counts_clients_current_month"] = 0
+    if current_statistics_clients["Current_week_day"] != current_date.isoweekday:
+        current_statistics_clients["Current_week_day"] = current_date.isoweekday
+        current_statistics_clients["Counts_clients_current_week"] = 0
+    if current_statistics_clients["Current_day"] != current_date.day:
+        current_statistics_clients["Current_day"] = current_date.day
+        current_statistics_clients["Counts_clients_current_day"] = 0
+    current_statistics_clients["Counts_clients_current_month"] += 1
+    current_statistics_clients["Counts_clients_current_week"] += 1
+    current_statistics_clients["Counts_clients_current_day"] += 1
+    with open(path_to_statistics_clients, 'w', encoding='cp1251') as file:
+        json.dump(current_statistics_clients, file, ensure_ascii=False)
     keyboard = await client_kb.answer_start_f()
     await bot.send_message(message.from_user.id, "Меню", reply_markup=keyboard)
     pass
@@ -55,6 +87,18 @@ async def back_menu_after_message_f(message: types.Message, state: FSMContext):
 
 
 async def cansel_handler_callback_f(callback: types.CallbackQuery, state: FSMContext):
+    global path_to_clients
+    # доделать
+    if state == FSMClient.searching:
+        try:
+            path_to_current_client = path_to_clients + str(callback.from_user.id) + "/search.json"
+            with open(path_to_current_client, 'r', encoding='cp1251') as file:
+                current_client_search = json.load(file)
+            path_client_result = path_to_clients + "/" + str(callback.from_user.id) + "/"
+            path_client_result += current_client_search["message_for_search"] + '.xlsx'
+            os.remove(path_client_result)
+        except:
+            pass
     await state.finish()
     try:
         await callback.answer("Возврат в начальное меню")
@@ -152,13 +196,28 @@ async def search_chose_buttons_f(callback: types.CallbackQuery, state: FSMContex
 
 
 async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
-    global path_to_clients
+    global path_to_clients, path_to_admins_statistics
+    path_to_statistics_clients = path_to_admins_statistics + "/clients.json"
+    path_to_statistics_search = path_to_admins_statistics + "/search.json"
+    with open(path_to_statistics_search, 'r', encoding='cp1251') as file:
+        current_search_clients = json.load(file)
+
     await callback.answer("Идет поиск...", cache_time=80)
     bot_answer = await bot.send_message(callback.from_user.id, "Загрузка... Ожидайте")
     await FSMClient.searching.set()
     path_to_current_client = path_to_clients + str(callback.from_user.id) + "/search.json"
     with open(path_to_current_client, 'r', encoding='cp1251') as file:
         current_client_search = json.load(file)
+    have_name_search = False
+    for item in current_search_clients:
+        if item["Name_Search"] == current_client_search["message_for_search"]:
+            item["Times_Get_Search"] += 1
+            have_name_search = True
+    if not have_name_search:
+        current_search_clients.append({"Name_Search": current_client_search["message_for_search"],
+                                       "Times_Get_Search": 1})
+    with open(path_to_statistics_search, 'w', encoding='cp1251') as file:
+        json.dump(current_search_clients, file, ensure_ascii=False)
     driver = Chrome(path_to_driver)
     url = "https://zakupki.gov.ru/" \
           "epz/order/extendedsearch/results.html?searchString=" + current_client_search["message_for_search"] + \
@@ -264,8 +323,9 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                 column_width = max(df[column].astype(str).map(len).max(), len(column))
                 col_idx = df.columns.get_loc(column)
                 writer.sheets['my_analysis'].set_column(col_idx, col_idx, column_width)
-        await callback.message.answer_document(open(path_client_result, 'rb'))
-        os.remove(path_client_result)
+        keyboard = await client_kb.answer_download_search()
+        await bot.send_message(callback.from_user.id, "Файл загружен", reply_markup=keyboard)
+
     else:
         for i in range(len(order_numbers)):
             keyboard = await client_kb.answer_search_link(links[i])
@@ -276,7 +336,43 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                                    answer,
                                    reply_markup=keyboard)
             await asyncio.sleep(1)
+        await cansel_handler_callback_f(callback, state)
 
+
+async def download_search_file_f(callback: types.CallbackQuery, state: FSMContext):
+    global path_to_clients, path_to_admins_statistics
+    path_to_statistics_clients = path_to_admins_statistics + "/clients.json"
+    with open(path_to_statistics_clients, 'r', encoding='cp1251') as file:
+        current_statistics_clients = json.load(file)
+    current_statistics_clients["Times_Use_Load_File_all_time"] += 1
+    current_date = date.today()
+    print(current_date)
+    print(current_date.month)
+    print(current_date.isoweekday)
+    print(current_date.day)
+    if current_statistics_clients["Current_month"] != current_date.month:
+        current_statistics_clients["Current_month"] = current_date.month
+        current_statistics_clients["Times_Use_Load_File_current_month"] = 0
+    if current_statistics_clients["Current_week_day"] != current_date.isoweekday:
+        current_statistics_clients["Current_week_day"] = current_date.isoweekday
+        current_statistics_clients["Times_Use_Load_File_current_week"] = 0
+    if current_statistics_clients["Current_day"] != current_date.day:
+        current_statistics_clients["Current_day"] = current_date.day
+        current_statistics_clients["Times_Use_Load_File_current_day"] = 0
+    current_statistics_clients["Times_Use_Load_File_current_month"] += 1
+    current_statistics_clients["Times_Use_Load_File_current_week"] += 1
+    current_statistics_clients["Times_Use_Load_File_current_day"] += 1
+    with open(path_to_statistics_clients, 'w', encoding='cp1251') as file:
+        json.dump(current_statistics_clients, file, ensure_ascii=False)
+
+    path_to_current_client = path_to_clients + str(callback.from_user.id) + "/search.json"
+    with open(path_to_current_client, 'r', encoding='cp1251') as file:
+        current_client_search = json.load(file)
+    path_client_result = path_to_clients + "/" + str(callback.from_user.id) + "/"
+    path_client_result += current_client_search["message_for_search"] + '.xlsx'
+    await callback.message.answer_document(open(path_client_result, 'rb'))
+    os.remove(path_client_result)
+    await callback.answer()
     await cansel_handler_callback_f(callback, state)
 
 
@@ -304,3 +400,5 @@ def register_handlers_client(dp: Dispatcher):
                                        state=FSMClient.search_begin_max_price)
     dp.register_callback_query_handler(search_begin_f, text='search_begin',
                                        state=FSMClient.search_begin_max_price)
+    dp.register_callback_query_handler(download_search_file_f, text='download_search_result',
+                                       state=FSMClient.searching)

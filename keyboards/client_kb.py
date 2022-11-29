@@ -40,6 +40,14 @@ async def answer_search_link(link: str):
     return kb_inline
 
 
+async def answer_download_search():
+    kb_inline = InlineKeyboardMarkup()
+    b = InlineKeyboardButton(text='Скачать', callback_data="download_search_result")
+    kb_inline.add(b)
+    await answer_add_button_cansel_f(kb_inline)
+    return kb_inline
+
+
 async def answer_add_button_cansel_f(kb_inline):
     back = InlineKeyboardButton(text='🔙 отмена', callback_data='cansel')
     kb_inline.add(back)

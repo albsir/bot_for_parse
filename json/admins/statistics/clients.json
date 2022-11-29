@@ -1,0 +1,13 @@
+{
+  "Current_month": 2,
+  "Current_week_day" : 5,
+  "Current_day": 5,
+  "Counts_clients_all_time": 0,
+  "Counts_clients_current_month": 0,
+  "Counts_clients_current_week":0,
+  "Counts_clients_current_day": 0,
+  "Times_Use_Load_File_all_time": 0,
+  "Times_Use_Load_File_current_month": 0,
+  "Times_Use_Load_File_current_week":0,
+  "Times_Use_Load_File_current_day": 0
+}
