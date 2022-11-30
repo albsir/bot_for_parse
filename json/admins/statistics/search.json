@@ -1,9 +1,1 @@
-[
-  {
-    "Name_Search": "",
-    "Times_Get_Search_all_time": 0,
-    "Times_Get_Search_current_month": 0,
-    "Times_Get_Search_current_week": 0,
-    "Times_Get_Search_current_day": 0
-  }
-]
+[{"Name_Search": "", "Times_Get_Search_all_time": 0, "Times_Get_Search_current_month": 0, "Times_Get_Search_current_week": 0, "Times_Get_Search_current_day": 0}, {"Name_Search": "арматура", "Times_Get_Search_all_time": 3, "Times_Get_Search_current_month": 3, "Times_Get_Search_current_week": 3, "Times_Get_Search_current_day": 3}, {"Name_Search": "кран", "Times_Get_Search_all_time": 1, "Times_Get_Search_current_month": 1, "Times_Get_Search_current_week": 1, "Times_Get_Search_current_day": 1}, {"Name_Search": "зерно", "Times_Get_Search_all_time": 1, "Times_Get_Search_current_month": 1, "Times_Get_Search_current_week": 1, "Times_Get_Search_current_day": 1}]

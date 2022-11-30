@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/handlers/admin.py" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/json/admins/settings/accounts.json" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/json/admins/settings/admins_id.json" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/json/admins/settings/option_in_bot.json" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/json/admins/statistics/clients.json" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/json/admins/statistics/search.json" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/json/clients/774508651/search.json" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/keyboards/admin_kb.py" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/settings.json" charset="UTF-8" />
+    <file url="PROJECT" charset="windows-1251" />
+  </component>
+</project>
