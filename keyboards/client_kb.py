@@ -9,10 +9,10 @@ async def answer_pre_start_f():
     kb_inline = InlineKeyboardMarkup()
     b1 = InlineKeyboardButton(text='🏢 Личный кабинет', callback_data='lk_change_menu')
     b2 = InlineKeyboardButton(text='🧳 Администратор', callback_data='admin_change_menu')
-    b3 = InlineKeyboardButton(text='🔎 Поиск', callback_data='search_change_menu')
+    b3 = InlineKeyboardButton(text='🔎 Поиск тендера', callback_data='search_change_menu')
     b4 = InlineKeyboardButton(text='🆘 Тех.Поддержка', callback_data='tech_sup_change_menu')
-
-    kb_inline.row(b1, b2).row(b3).add(b4)
+    b5 = InlineKeyboardButton(text='Добавить тендерную площадку', callback_data='add_tender_place_change_menu')
+    kb_inline.row(b1, b2).row(b3).add(b4).add(b5)
     return kb_inline
 
 
@@ -27,14 +27,14 @@ async def answer_after_chose_search_f(modify: list):
     buttons = []
     for i in range(len(modify)):
         if modify[i] == 1:
-            clb_d_str = 'search_change_settings_' + str(i)
+            clb_d_str = 'search_change_settings_yes_' + str(i)
             b = InlineKeyboardButton(text=fz_yes[i], callback_data=client.cb_modify_search.new(msg_text=clb_d_str))
             buttons.append(b)
         else:
-            clb_d_str = 'search_change_settings_' + str(i)
+            clb_d_str = 'search_change_settings_no_' + str(i)
             b = InlineKeyboardButton(text=fz_no[i], callback_data=client.cb_modify_search.new(msg_text=clb_d_str))
             buttons.append(b)
-    b5 = InlineKeyboardButton(text='🔎 Искать', callback_data='search_begin')
+    b5 = InlineKeyboardButton(text='🔎 Начать поиск тендера', callback_data='search_begin')
     for item in buttons:
         kb_inline.row(item)
     kb_inline.add(b5)

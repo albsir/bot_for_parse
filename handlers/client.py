@@ -7,14 +7,16 @@ from aiogram import Dispatcher
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 from aiogram.utils.exceptions import InvalidQueryID
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
+from urlvalidator import URLValidator, ValidationError
+
 from handlers import admin
 from create_bot import bot
 from keyboards import client_kb
-from aiogram.types import InlineKeyboardMarkup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 
@@ -26,7 +28,7 @@ options.add_argument('--disable-dev-shm-usage')
 
 cb_modify_search = CallbackData('post', 'msg_text')
 
-path_to_driver = os.getcwd() + "/" + "drivers/chromedriver"
+path_to_driver = os.getcwd() + "/" + "drivers/chromedriver.exe"
 path_to_clients = os.getcwd() + "/" + "json/clients"
 path_to_admins_statistics = os.getcwd() + "/" + "json/admins/statistics"
 path_to_admins_settings = os.getcwd() + "/" + "json/admins/settings"
@@ -43,6 +45,7 @@ class FSMClient(StatesGroup):
     search_begin_min_price = State()
     search_begin_max_price = State()
     searching = State()
+    add_tender_place_begin = State()
 
 
 """
@@ -52,7 +55,7 @@ class FSMClient(StatesGroup):
 """
 
 
-async def update_date_statistic():
+async def update_date_statistic(chat_id: int):
     global path_to_admins_statistics
     path_to_statistics_clients = path_to_admins_statistics + "/clients.json"
     path_to_statistics_search = path_to_admins_statistics + "/search.json"
@@ -60,18 +63,19 @@ async def update_date_statistic():
         current_statistics_clients = json.load(file)
     with open(path_to_statistics_search, 'r', encoding='utf8') as file:
         current_statistics_search = json.load(file)
-    current_statistics_clients["Counts_clients_all_time"] += 1
     current_date = date.today()
     if current_statistics_clients["Current_month"] != current_date.month:
         current_statistics_clients["Current_month"] = current_date.month
         current_statistics_clients["Counts_clients_current_month"] = 0
         current_statistics_clients["Times_Use_Load_File_current_month"] = 0
+        current_statistics_clients["clients_id_current_month"].clear()
         for item in current_statistics_search:
             item["Times_Get_Search_current_month"] = 0
     if current_statistics_clients["Current_week_day"] == 7 and current_date.isoweekday() == 1:
         current_statistics_clients["Current_week_day"] = current_date.isoweekday()
         current_statistics_clients["Counts_clients_current_week"] = 0
         current_statistics_clients["Times_Use_Load_File_current_week"] = 0
+        current_statistics_clients["clients_id_current_week"].clear()
         for item in current_statistics_search:
             item["Times_Get_Search_current_week"] = 0
     elif current_statistics_clients["Current_week_day"] != current_date.isoweekday():
@@ -80,28 +84,53 @@ async def update_date_statistic():
         current_statistics_clients["Current_day"] = current_date.day
         current_statistics_clients["Counts_clients_current_day"] = 0
         current_statistics_clients["Times_Use_Load_File_current_day"] = 0
+        current_statistics_clients["clients_id_current_day"].clear()
         for item in current_statistics_search:
             item["Times_Get_Search_current_day"] = 0
-    current_statistics_clients["Counts_clients_current_month"] += 1
-    current_statistics_clients["Counts_clients_current_week"] += 1
-    current_statistics_clients["Counts_clients_current_day"] += 1
+
+    new_id = True
+    for client_id in current_statistics_clients["clients_id_all_time"]:
+        if chat_id == client_id:
+            new_id = False
+            break
+    if new_id:
+        current_statistics_clients["Counts_clients_all_time"] += 1
+        current_statistics_clients["clients_id_all_time"].append(chat_id)
+
+    new_id = True
+    for client_id in current_statistics_clients["clients_id_current_month"]:
+        if chat_id == client_id:
+            new_id = False
+            break
+    if new_id:
+        current_statistics_clients["Counts_clients_current_month"] += 1
+        current_statistics_clients["clients_id_current_month"].append(chat_id)
+
+    new_id = True
+    for client_id in current_statistics_clients["clients_id_current_week"]:
+        if chat_id == client_id:
+            new_id = False
+            break
+    if new_id:
+        current_statistics_clients["Counts_clients_current_week"] += 1
+        current_statistics_clients["clients_id_current_week"].append(chat_id)
+
+    new_id = True
+    for client_id in current_statistics_clients["clients_id_current_day"]:
+        if chat_id == client_id:
+            new_id = False
+            break
+    if new_id:
+        current_statistics_clients["Counts_clients_current_day"] += 1
+        current_statistics_clients["clients_id_current_day"].append(chat_id)
+
     with open(path_to_statistics_clients, 'w', encoding='utf8') as file:
         json.dump(current_statistics_clients, file, ensure_ascii=False)
     with open(path_to_statistics_search, 'w', encoding='utf8') as file:
         json.dump(current_statistics_search, file, ensure_ascii=False)
 
 
-async def check_member(user_id: int):
-    global path_to_clients, path_to_admins_statistics
-    path_to_statistics_clients = path_to_admins_statistics + "/clients.json"
-    with open(path_to_statistics_clients, 'r', encoding='utf8') as file:
-        current_statistics_clients = json.load(file)
-    path_to_current_client = path_to_clients + "/" + str(user_id)
-    if os.path.exists(path_to_current_client):
-        return
-    else:
-        os.mkdir(path_to_current_client)
-        current_statistics_clients["clients_id"].append(user_id)
+
 
 
 """
@@ -119,7 +148,7 @@ async def answer_pre_start_f(message: types.Message, state: FSMContext):
         if user_id == message.chat.id:
             await bot.send_message(message.chat.id, "Вы забанены")
             return
-    await update_date_statistic()
+    await update_date_statistic(message.chat.id)
     keyboard = await client_kb.answer_pre_start_f()
     await bot.send_message(message.chat.id, "Выбирайте", reply_markup=keyboard)
 
@@ -132,7 +161,7 @@ async def main_menu_callback_f(callback: types.CallbackQuery, state: FSMContext)
         if user_id == callback.from_user.id:
             await bot.send_message(callback.from_user.id, "Вы забанены")
             return
-    await update_date_statistic()
+    await update_date_statistic(callback.from_user.id)
     keyboard = await client_kb.answer_start_f()
     await bot.send_message(callback.from_user.id, "Меню:", reply_markup=keyboard)
     try:
@@ -207,7 +236,10 @@ async def change_menu_admin_f(callback: types.CallbackQuery, state: FSMContext):
 
 async def change_menu_techsup_f(callback: types.CallbackQuery, state: FSMContext):
     await FSMClient.techsup_begin.set()
-    await bot.send_message(callback.from_user.id, "Введите сообщение, которое получат администраторы")
+    keyboard = InlineKeyboardMarkup()
+    await client_kb.answer_add_button_cansel_f(keyboard)
+    await bot.send_message(callback.from_user.id, "Введите сообщение, которое получат администраторы",
+                           reply_markup=keyboard)
     await callback.answer()
 
 
@@ -238,7 +270,9 @@ async def get_request_techsup_after_message_f(message: types.Message, state: FSM
 
 async def change_menu_search_f(callback: types.CallbackQuery, state: FSMContext):
     await FSMClient.search_begin.set()
-    await bot.send_message(callback.from_user.id, "Вводите слово")
+    keyboard = InlineKeyboardMarkup()
+    await client_kb.answer_add_button_cansel_f(keyboard)
+    await bot.send_message(callback.from_user.id, "Введите тендер, пример: арматура", reply_markup=keyboard)
     await callback.answer()
 
 
@@ -255,7 +289,10 @@ async def search_after_get_message_f(message: types.Message, state: FSMContext):
     path_to_current_client += "/search.json"
     with open(path_to_current_client, 'w', encoding='utf8') as file:
         json.dump(begin_modify, file, ensure_ascii=False)
-    await bot.send_message(message.from_user.id, "Введите миниальный бюджет в рублях Пример: 150000")
+    keyboard = InlineKeyboardMarkup()
+    await client_kb.answer_add_button_cansel_f(keyboard)
+    await bot.send_message(message.from_user.id, "Введите миниальный бюджет в рублях Пример: 150000",
+                           reply_markup=keyboard)
 
 
 async def search_after_get_min_price_f(message: types.Message, state: FSMContext):
@@ -272,7 +309,10 @@ async def search_after_get_min_price_f(message: types.Message, state: FSMContext
     except:
         await bot.send_message(message.from_user.id, "Вы неправильно ввели мин бюджет, попробуйте снова:")
         await search_after_get_message_f(message, state)
-    await bot.send_message(message.from_user.id, "Введите максимальный бюджет:")
+    keyboard = InlineKeyboardMarkup()
+    await client_kb.answer_add_button_cansel_f(keyboard)
+    await bot.send_message(message.from_user.id, "Введите максимальный бюджет в рублях Пример: 250000",
+                           reply_markup= keyboard)
 
 
 async def search_after_get_max_price_f(message: types.Message, state: FSMContext):
@@ -365,7 +405,12 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     driver.get(url)
     pages = driver.find_element(By.CLASS_NAME, "paginator.align-self-center.m-0")
     pages_new = pages.find_elements(By.CLASS_NAME, "page")
-    pages_count = int(pages_new[len(pages_new) - 1].text)
+    try:
+        pages_count = int(pages_new[len(pages_new) - 1].text)
+    except IndexError:
+        await bot.send_message(callback.from_user.id, "По вашему запросу нет результатов")
+        await cansel_handler_callback_f(callback, state)
+        return
     order_numbers = []
     purchase_volumes = []
     client_names = []
@@ -378,8 +423,9 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
         url = "https://zakupki.gov.ru/" \
               "epz/order/extendedsearch/results.html?searchString=" + current_client_search["message_for_search"] + \
               "&morphology=on" \
-              "&search-filter=Дате+размещения&pageNumber=" + str(page + 1) + "&sortDirection=false&recordsPerPage=_10" \
-                                                                             "&showLotsInfoHidden=false&sortBy=UPDATE_DATE"
+              "&search-filter=Дате+размещения&pageNumber=" + \
+              str(page + 1) + "&sortDirection=false&recordsPerPage=_10" \
+                              "&showLotsInfoHidden=false&sortBy=UPDATE_DATE"
 
         if current_client_search["modify_button"][0] == 1:
             url += "&fz44=on"
@@ -435,7 +481,10 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
         array_for_file[i].append(client_names[i])
         array_for_file[i].append(begin_prices[i])
         array_for_file[i].append(start_dates[i])
-        array_for_file[i].append(end_dates[i])
+        try:
+            array_for_file[i].append(end_dates[i])
+        except IndexError:
+            array_for_file[i].append("НЕТ")
         stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
         array_for_file[i].append(stroke)
     if current_client_search["modify_button"][4] == 1:
@@ -489,6 +538,47 @@ async def download_search_file_f(callback: types.CallbackQuery, state: FSMContex
 
 """
 
+                                        РАБОТА С РАЗДЕЛОМ МЕНЮ: Добавить тендерную площадку
+
+"""
+
+
+async def add_tender_place_change_menu_f(callback: types.CallbackQuery, state: FSMContext):
+    await FSMClient.add_tender_place_begin.set()
+    keyboard = InlineKeyboardMarkup()
+    await client_kb.answer_add_button_cansel_f(keyboard)
+    await bot.send_message(callback.from_user.id, "Отправьте ссылку на тендерную площадку", reply_markup=keyboard)
+    await callback.answer()
+
+
+async def add_tender_place_get_link_f(message: types.Message, state: FSMContext):
+    global path_to_admins_statistics
+    path_to_tender_links = path_to_admins_statistics + "/" + "tender_links.json"
+    validate = URLValidator()
+    try:
+        validate(message.text)
+        try:
+            with open(path_to_tender_links, 'r', encoding='utf8') as file:
+                current_tender_links = json.load(file)
+        except FileNotFoundError:
+            current_tender_links = {}
+            with open(path_to_tender_links, 'w', encoding='utf8') as file:
+                json.dump(current_tender_links, file, ensure_ascii=False)
+        if message.text in current_tender_links:
+            current_tender_links[message.text] += 1
+        else:
+            current_tender_links[message.text] = 1
+        with open(path_to_tender_links, 'w', encoding='utf8') as file:
+            json.dump(current_tender_links, file, ensure_ascii=False)
+        await bot.send_message(message.chat.id, "Тендер добавлен, спасибо")
+        await back_menu_after_message_f(message, state)
+    except ValidationError as vlderr:
+        await bot.send_message(message.chat.id, "Вы указали неккоректную ссылку")
+        await back_menu_after_message_f(message, state)
+
+
+"""
+
                                         РЕГИСТРАЦИЯ ХЕНЛДЕРОВ
 
 """
@@ -496,7 +586,7 @@ async def download_search_file_f(callback: types.CallbackQuery, state: FSMContex
 
 def register_handlers_client(dp: Dispatcher):
     # Начало
-    dp.register_message_handler(answer_pre_start_f, commands="start", state=None)
+    dp.register_message_handler(answer_pre_start_f, commands="start", state="*")
     dp.register_callback_query_handler(change_menu_search_f, text='search_change_menu',
                                        state=None)
     dp.register_callback_query_handler(change_menu_admin_f, text='admin_change_menu',
@@ -504,6 +594,8 @@ def register_handlers_client(dp: Dispatcher):
     dp.register_callback_query_handler(change_menu_techsup_f, text='tech_sup_change_menu',
                                        state=None)
     dp.register_callback_query_handler(main_menu_callback_f, text='lk_change_menu',
+                                       state=None)
+    dp.register_callback_query_handler(add_tender_place_change_menu_f, text='add_tender_place_change_menu',
                                        state=None)
     # Отмена
     dp.register_message_handler(back_menu_after_message_f, commands="/cansel", state="*")
@@ -522,3 +614,5 @@ def register_handlers_client(dp: Dispatcher):
                                        state=FSMClient.search_begin_max_price)
     dp.register_callback_query_handler(download_search_file_f, text='download_search_result',
                                        state=FSMClient.searching)
+    # Работа с добавлением тендера
+    dp.register_message_handler(add_tender_place_get_link_f, commands=None, state=FSMClient.add_tender_place_begin)
