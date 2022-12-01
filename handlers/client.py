@@ -130,9 +130,6 @@ async def update_date_statistic(chat_id: int):
         json.dump(current_statistics_search, file, ensure_ascii=False)
 
 
-
-
-
 """
 
                                         РАБОТА С МЕНЮ
@@ -272,7 +269,10 @@ async def change_menu_search_f(callback: types.CallbackQuery, state: FSMContext)
     await FSMClient.search_begin.set()
     keyboard = InlineKeyboardMarkup()
     await client_kb.answer_add_button_cansel_f(keyboard)
-    await bot.send_message(callback.from_user.id, "Введите тендер, пример: арматура", reply_markup=keyboard)
+    await bot.send_message(callback.from_user.id,
+                           "Введите ключевое слово для поиска тендера\nПример №1: арматура\nПример №2: пшеница"
+                           "\nПример №3: перевозка\nПример №4: ремонт",
+                           reply_markup=keyboard)
     await callback.answer()
 
 
@@ -312,7 +312,7 @@ async def search_after_get_min_price_f(message: types.Message, state: FSMContext
     keyboard = InlineKeyboardMarkup()
     await client_kb.answer_add_button_cansel_f(keyboard)
     await bot.send_message(message.from_user.id, "Введите максимальный бюджет в рублях Пример: 250000",
-                           reply_markup= keyboard)
+                           reply_markup=keyboard)
 
 
 async def search_after_get_max_price_f(message: types.Message, state: FSMContext):
@@ -338,7 +338,6 @@ async def search_after_get_max_price_f(message: types.Message, state: FSMContext
 
 async def search_chose_buttons_f(callback: types.CallbackQuery, state: FSMContext):
     global path_to_clients
-    await callback.answer(cache_time=80)
     id_modify = callback.data
     id_modify = id_modify[id_modify.rfind('_') + 1:]
     id_modify_int = int(id_modify)
@@ -353,7 +352,7 @@ async def search_chose_buttons_f(callback: types.CallbackQuery, state: FSMContex
         json.dump(current_client_search, file, ensure_ascii=False)
     keyboard = await client_kb.answer_after_chose_search_f(current_client_search["modify_button"])
     await callback.message.edit_reply_markup(reply_markup=keyboard)
-    pass
+    await callback.answer()
 
 
 async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
@@ -361,7 +360,6 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     path_to_statistics_search = path_to_admins_statistics + "/search.json"
     with open(path_to_statistics_search, 'r', encoding='utf8') as file:
         current_search_search = json.load(file)
-    await callback.answer("Идет поиск...", cache_time=80)
     bot_answer = await bot.send_message(callback.from_user.id, "Загрузка... Ожидайте")
     await FSMClient.searching.set()
     path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
@@ -384,6 +382,7 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     with open(path_to_statistics_search, 'w', encoding='utf8') as file:
         json.dump(current_search_search, file, ensure_ascii=False)
     print(path_to_driver)
+    await callback.answer("Начат поиск", cache_time=80)
     driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
     url = "https://zakupki.gov.ru/" \
           "epz/order/extendedsearch/results.html?searchString=" + current_client_search["message_for_search"] + \
@@ -504,12 +503,12 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     else:
         for i in range(len(order_numbers)):
             keyboard = await client_kb.answer_search_link(links[i])
-            answer = "Заявка: " + order_numbers[i] + "\n" + "Объект закупки:\n" + purchase_volumes[i] + "\n" + \
-                     "Заказчик:\n" + client_names[i] + "\n" + "Начальная цена: " + begin_prices[i] + " руб\n" + \
-                     "Размещено: " + start_dates[i] + "\n" + "Окончание подачи заявок: " + end_dates[i] + "\n"
+            answer = "*Заявка*: " + order_numbers[i] + "\n" + "*Объект закупки*:\n" + purchase_volumes[i] + "\n" + \
+                     "*Заказчик*:\n" + client_names[i] + "\n" + "*Начальная цена*: " + begin_prices[i] + " руб\n" + \
+                     "*Размещено*: " + start_dates[i] + "\n" + "*Окончание подачи заявок*: " + end_dates[i] + "\n"
             await bot.send_message(callback.from_user.id,
                                    answer,
-                                   reply_markup=keyboard)
+                                   reply_markup=keyboard, parse_mode="Markdown")
             await asyncio.sleep(1)
         await cansel_handler_callback_f(callback, state)
 
