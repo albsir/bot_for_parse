@@ -149,6 +149,23 @@ async def change_stat_clients(callback: types.CallbackQuery, state: FSMContext):
     await main_menu_callback_f(callback, state)
 
 
+async def admin_check_requests_add_tender_f(callback: types.CallbackQuery, state: FSMContext):
+    global path_to_admins_statistics
+    path_to_statistics_tender_links = path_to_admins_statistics + "/tender_links.json"
+    with open(path_to_statistics_tender_links, 'r', encoding='utf8') as file:
+        current_statistics_tender_links = json.load(file)
+    answer = ""
+    for key, value in current_statistics_tender_links.items():
+        answer += "Ссылка: " + str(key) + "\nотправлялась: " + str(value) + " раз\n"
+    if answer == "":
+        await bot.send_message(callback.from_user.id, "Результат:\nПусто")
+        await callback.answer()
+        await main_menu_callback_f(callback, state)
+    else:
+        await bot.send_message(callback.from_user.id, "Результат:\n" + answer)
+        await callback.answer()
+        await main_menu_callback_f(callback, state)
+
 """
 
                                 РАБОТА С РАЗДЕЛОМ МЕНЮ: Разослать всем сообещние
@@ -350,6 +367,8 @@ def register_handlers_client(dp: Dispatcher):
     dp.register_callback_query_handler(change_stat_request, text='admin_stat_requests',
                                        state=FSMAdmin.statistics_begin)
     dp.register_callback_query_handler(change_stat_clients, text='admin_stat_clients',
+                                       state=FSMAdmin.statistics_begin)
+    dp.register_callback_query_handler(admin_check_requests_add_tender_f, text='admin_check_requests_add_tender',
                                        state=FSMAdmin.statistics_begin)
     # Работа с техподдержкой
     dp.register_callback_query_handler(change_menu_techsup_f, text='admin_tech_sup_change_menu',

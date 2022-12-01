@@ -21,7 +21,8 @@ async def answer_change_statistics():
     kb_inline = InlineKeyboardMarkup()
     b1 = InlineKeyboardButton(text='📈 Статистика по запросам', callback_data='admin_stat_requests')
     b2 = InlineKeyboardButton(text='📊 Статистика по клиентам', callback_data='admin_stat_clients')
-    kb_inline.add(b1).add(b2)
+    b3 = InlineKeyboardButton(text='📊 Добавление тендеров', callback_data='admin_check_requests_add_tender')
+    kb_inline.add(b1).add(b2).add(b3)
     await answer_add_button_cansel_f(kb_inline)
     return kb_inline
 
