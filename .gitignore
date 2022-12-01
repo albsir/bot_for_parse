@@ -127,7 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-/json/clients/774508651/search.json
 /settings.json
-/json/clients/774508651/
 /json/clients/
+/json/admins/statistics/clients.json
+/json/admins/statistics/search.json
