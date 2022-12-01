@@ -261,7 +261,7 @@ async def after_change_request_user_techsup_f(callback: types.CallbackQuery, cal
     with open(path_to_admins_settings_in_bot, 'r', encoding='utf8') as file:
         current_admin_options_in_bot = json.load(file)
     path_to_admins_techsup_requests = path_to_admins_techsup + "/"
-    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json "
+    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json"
     with open(path_to_admins_techsup_requests, 'r', encoding='utf8') as file:
         current_user_requests = json.load(file)
     current_admin_options_in_bot["current_request_message_id"] = int(callback_data['msg_text'])
@@ -283,7 +283,7 @@ async def answer_ban_request_user_techsup_f(callback: types.CallbackQuery, state
     with open(path_to_admins_settings_ban_users, 'r', encoding='utf8') as file:
         current_admin_options_ban_users = json.load(file)
     path_to_admins_techsup_requests = path_to_admins_techsup + "/"
-    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json "
+    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json"
     current_admin_options_ban_users.append(current_admin_options_in_bot["current_user_for_techsup"])
     os.remove(path_to_admins_techsup_requests)
     await bot.send_message(callback.from_user.id, "Пользователь забанен")
@@ -301,7 +301,7 @@ async def answer_request_user_techsup_f(message: types.Message, state: FSMContex
     with open(path_to_admins_settings_in_bot, 'r', encoding='utf8') as file:
         current_admin_options_in_bot = json.load(file)
     path_to_admins_techsup_requests = path_to_admins_techsup + "/"
-    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json "
+    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json"
     with open(path_to_admins_techsup_requests, 'r', encoding='utf8') as file:
         current_user_requests = json.load(file)
     question = ""
@@ -320,7 +320,7 @@ async def delete_request_user():
     with open(path_to_admins_settings_in_bot, 'r', encoding='utf8') as file:
         current_admin_options_in_bot = json.load(file)
     path_to_admins_techsup_requests = path_to_admins_techsup + "/"
-    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json "
+    path_to_admins_techsup_requests += str(current_admin_options_in_bot["current_user_for_techsup"]) + ".json"
     with open(path_to_admins_techsup_requests, 'r', encoding='utf8') as file:
         current_user_requests = json.load(file)
     for item in current_user_requests:

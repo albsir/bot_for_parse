@@ -15,15 +15,24 @@ from handlers import admin
 from create_bot import bot
 from keyboards import client_kb
 from aiogram.types import InlineKeyboardMarkup
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+
+options = webdriver.ChromeOptions()
+options.add_argument('--no-sandbox')
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument('--headless')
+options.add_argument('--disable-dev-shm-usage')
 
 cb_modify_search = CallbackData('post', 'msg_text')
 
-path_to_driver = os.getcwd() + "/" + "drivers/chromedriver.exe"
+path_to_driver = os.getcwd() + "/" + "drivers/chromedriver"
 path_to_clients = os.getcwd() + "/" + "json/clients"
 path_to_admins_statistics = os.getcwd() + "/" + "json/admins/statistics"
 path_to_admins_settings = os.getcwd() + "/" + "json/admins/settings"
 path_to_admins_techsup = os.getcwd() + "/" + "json/admins/techsup"
 path_to_admins_settings_ban_users = path_to_admins_settings + "/" + "ban_users.json"
+service_chrome = Service(path_to_driver)
 
 
 class FSMClient(StatesGroup):
@@ -59,12 +68,14 @@ async def update_date_statistic():
         current_statistics_clients["Times_Use_Load_File_current_month"] = 0
         for item in current_statistics_search:
             item["Times_Get_Search_current_month"] = 0
-    if current_statistics_clients["Current_week_day"] != current_date.isoweekday():
+    if current_statistics_clients["Current_week_day"] == 7 and current_date.isoweekday() == 1:
         current_statistics_clients["Current_week_day"] = current_date.isoweekday()
         current_statistics_clients["Counts_clients_current_week"] = 0
         current_statistics_clients["Times_Use_Load_File_current_week"] = 0
         for item in current_statistics_search:
             item["Times_Get_Search_current_week"] = 0
+    elif current_statistics_clients["Current_week_day"] != current_date.isoweekday():
+        current_statistics_clients["Current_week_day"] = current_date.isoweekday()
     if current_statistics_clients["Current_day"] != current_date.day:
         current_statistics_clients["Current_day"] = current_date.day
         current_statistics_clients["Counts_clients_current_day"] = 0
@@ -332,7 +343,8 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                                       "Times_Get_Search_current_day": 1})
     with open(path_to_statistics_search, 'w', encoding='utf8') as file:
         json.dump(current_search_search, file, ensure_ascii=False)
-    driver = Chrome(path_to_driver)
+    print(path_to_driver)
+    driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
     url = "https://zakupki.gov.ru/" \
           "epz/order/extendedsearch/results.html?searchString=" + current_client_search["message_for_search"] + \
           "&morphology=on" \
