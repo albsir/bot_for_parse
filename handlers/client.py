@@ -54,7 +54,6 @@ class FSMClient(StatesGroup):
 async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.CallbackQuery,
                           bot_answer: types.Message, len_array_for_file: int):
     global path_to_clients
-    await FSMClient.searching.set()
     await bot_answer.edit_text("Загрузка из zakupki.gov.ru .")
     path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
     with open(path_to_current_client, 'r', encoding='utf8') as file:
@@ -148,17 +147,17 @@ async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.
             await asyncio.sleep(1)
     for i in range(len(order_numbers)):
         array_for_file.append([])
-        array_for_file[i+len_array_for_file].append(order_numbers[i])
-        array_for_file[i+len_array_for_file].append(purchase_volumes[i])
-        array_for_file[i+len_array_for_file].append(client_names[i])
-        array_for_file[i+len_array_for_file].append(begin_prices[i] + " руб")
-        array_for_file[i+len_array_for_file].append(start_dates[i])
+        array_for_file[i + len_array_for_file].append(order_numbers[i])
+        array_for_file[i + len_array_for_file].append(purchase_volumes[i])
+        array_for_file[i + len_array_for_file].append(client_names[i])
+        array_for_file[i + len_array_for_file].append(begin_prices[i] + " руб")
+        array_for_file[i + len_array_for_file].append(start_dates[i])
         try:
-            array_for_file[i+len_array_for_file].append(end_dates[i])
+            array_for_file[i + len_array_for_file].append(end_dates[i])
         except IndexError:
-            array_for_file[i+len_array_for_file].append("НЕТ")
+            array_for_file[i + len_array_for_file].append("НЕТ")
         stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
-        array_for_file[i+len_array_for_file].append(stroke)
+        array_for_file[i + len_array_for_file].append(stroke)
     driver.close()
 
 
@@ -313,18 +312,19 @@ async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.Cal
         if order_numbers[i] == "":
             continue
         array_for_file.append([])
-        array_for_file[i+len_array_for_file].append(order_numbers[i])
-        array_for_file[i+len_array_for_file].append(purchase_volumes[i])
-        array_for_file[i+len_array_for_file].append(client_names[i])
-        array_for_file[i+len_array_for_file].append(begin_prices[i])
-        array_for_file[i+len_array_for_file].append(start_dates[i])
+        array_for_file[i + len_array_for_file].append(order_numbers[i])
+        array_for_file[i + len_array_for_file].append(purchase_volumes[i])
+        array_for_file[i + len_array_for_file].append(client_names[i])
+        array_for_file[i + len_array_for_file].append(begin_prices[i])
+        array_for_file[i + len_array_for_file].append(start_dates[i])
         try:
-            array_for_file[i+len_array_for_file].append(end_dates[i])
+            array_for_file[i + len_array_for_file].append(end_dates[i])
         except IndexError:
-            array_for_file[i+len_array_for_file].append("НЕТ")
+            array_for_file[i + len_array_for_file].append("НЕТ")
         stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
-        array_for_file[i+len_array_for_file].append(stroke)
+        array_for_file[i + len_array_for_file].append(stroke)
     driver.close()
+
 
 """
 
@@ -346,6 +346,7 @@ async def update_date_statistic(chat_id: int):
         current_statistics_clients["Current_month"] = current_date.month
         current_statistics_clients["Counts_clients_current_month"] = 0
         current_statistics_clients["Times_Use_Load_File_current_month"] = 0
+        current_statistics_clients["Times_Use_Load_Link_current_month"] = 0
         current_statistics_clients["clients_id_current_month"].clear()
         for item in current_statistics_search:
             item["Times_Get_Search_current_month"] = 0
@@ -353,6 +354,7 @@ async def update_date_statistic(chat_id: int):
         current_statistics_clients["Current_week_day"] = current_date.isoweekday()
         current_statistics_clients["Counts_clients_current_week"] = 0
         current_statistics_clients["Times_Use_Load_File_current_week"] = 0
+        current_statistics_clients["Times_Use_Load_Link_current_week"] = 0
         current_statistics_clients["clients_id_current_week"].clear()
         for item in current_statistics_search:
             item["Times_Get_Search_current_week"] = 0
@@ -362,6 +364,7 @@ async def update_date_statistic(chat_id: int):
         current_statistics_clients["Current_day"] = current_date.day
         current_statistics_clients["Counts_clients_current_day"] = 0
         current_statistics_clients["Times_Use_Load_File_current_day"] = 0
+        current_statistics_clients["Times_Use_Load_Link_current_day"] = 0
         current_statistics_clients["clients_id_current_day"].clear()
         for item in current_statistics_search:
             item["Times_Get_Search_current_day"] = 0
@@ -703,7 +706,7 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     else:
         for i in range(len(array_for_file)):
             stroke = array_for_file[i][6]
-            stroke = stroke[stroke.find('"')+1:]
+            stroke = stroke[stroke.find('"') + 1:]
             stroke = stroke[:stroke.find('"')]
             keyboard = await client_kb.answer_search_link(stroke)
             answer = "*Заявка*: " + array_for_file[i][0] + "\n*Объект закупки*: " + array_for_file[i][1] + \
@@ -714,7 +717,6 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                                    answer,
                                    reply_markup=keyboard, parse_mode="Markdown")
             await asyncio.sleep(1)
-        await cansel_handler_callback_f(callback, state)
 
 
 async def download_search_file_f(callback: types.CallbackQuery, state: FSMContext):
@@ -735,6 +737,21 @@ async def download_search_file_f(callback: types.CallbackQuery, state: FSMContex
     path_client_result += current_client_search["message_for_search"] + '.xlsx'
     await callback.message.answer_document(open(path_client_result, 'rb'))
     os.remove(path_client_result)
+    await callback.answer()
+    await cansel_handler_callback_f(callback, state)
+
+
+async def load_link_search_f(callback: types.CallbackQuery, state: FSMContext):
+    global path_to_clients, path_to_admins_statistics
+    path_to_statistics_clients = path_to_admins_statistics + "/clients.json"
+    with open(path_to_statistics_clients, 'r', encoding='utf8') as file:
+        current_statistics_clients = json.load(file)
+    current_statistics_clients["Times_Use_Load_Link_all_time"] += 1
+    current_statistics_clients["Times_Use_Load_Link_current_month"] += 1
+    current_statistics_clients["Times_Use_Load_Link_current_week"] += 1
+    current_statistics_clients["Times_Use_Load_Link_current_day"] += 1
+    with open(path_to_statistics_clients, 'w', encoding='utf8') as file:
+        json.dump(current_statistics_clients, file, ensure_ascii=False)
     await callback.answer()
     await cansel_handler_callback_f(callback, state)
 
@@ -816,6 +833,8 @@ def register_handlers_client(dp: Dispatcher):
     dp.register_callback_query_handler(search_begin_f, text='search_begin',
                                        state=FSMClient.search_begin_max_price)
     dp.register_callback_query_handler(download_search_file_f, text='download_search_result',
+                                       state=FSMClient.searching)
+    dp.register_callback_query_handler(load_link_search_f, text='load_link_search_result',
                                        state=FSMClient.searching)
     # Работа с добавлением тендера
     dp.register_message_handler(add_tender_place_get_link_f, commands=None, state=FSMClient.add_tender_place_begin)

@@ -44,7 +44,7 @@ async def answer_after_chose_search_f(modify: list):
 
 async def answer_search_link(link: str):
     kb_inline = InlineKeyboardMarkup()
-    b = InlineKeyboardButton(text='🎉 Перейти', url=link)
+    b = InlineKeyboardButton(text='🎉 Перейти', url=link, callback_data="load_link_search_result")
     kb_inline.add(b)
     return kb_inline
 
