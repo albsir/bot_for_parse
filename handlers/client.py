@@ -52,7 +52,7 @@ class FSMClient(StatesGroup):
 
 
 async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.CallbackQuery,
-                          bot_answer: types.Message, len_array_for_file: int):
+                          bot_answer: types.Message):
     global path_to_clients
     await bot_answer.edit_text("Загрузка из zakupki.gov.ru .")
     path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
@@ -147,22 +147,25 @@ async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.
             await asyncio.sleep(1)
     for i in range(len(order_numbers)):
         array_for_file.append([])
-        array_for_file[i + len_array_for_file].append(order_numbers[i])
-        array_for_file[i + len_array_for_file].append(purchase_volumes[i])
-        array_for_file[i + len_array_for_file].append(client_names[i])
-        array_for_file[i + len_array_for_file].append(begin_prices[i] + " руб")
-        array_for_file[i + len_array_for_file].append(start_dates[i])
+        array_for_file[i].append(order_numbers[i])
+        array_for_file[i].append(purchase_volumes[i])
+        array_for_file[i].append(client_names[i])
+        array_for_file[i].append(begin_prices[i] + " руб")
+        array_for_file[i].append(start_dates[i])
         try:
-            array_for_file[i + len_array_for_file].append(end_dates[i])
+            array_for_file[i].append(end_dates[i])
         except IndexError:
-            array_for_file[i + len_array_for_file].append("НЕТ")
+            array_for_file[i].append("НЕТ")
         stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
-        array_for_file[i + len_array_for_file].append(stroke)
-    driver.close()
+        array_for_file[i].append(stroke)
+    try:
+        driver.quit()
+    finally:
+        pass
 
 
 async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.CallbackQuery,
-                       bot_answer: types.Message, len_array_for_file: int):
+                       bot_answer: types.Message):
     global path_to_clients
     await asyncio.sleep(2)
     path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
@@ -261,7 +264,6 @@ async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.Cal
         for request in requests:
             try:
                 stroke = "№ " + request.find_element(By.CLASS_NAME, "es-el-code-term").text
-                stroke = stroke[:stroke.find('.')]
                 order_numbers.append(stroke)
                 stroke = request.find_element(By.CLASS_NAME, "es-el-amount").text
                 stroke = stroke[:stroke.find('.')]
@@ -312,18 +314,21 @@ async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.Cal
         if order_numbers[i] == "":
             continue
         array_for_file.append([])
-        array_for_file[i + len_array_for_file].append(order_numbers[i])
-        array_for_file[i + len_array_for_file].append(purchase_volumes[i])
-        array_for_file[i + len_array_for_file].append(client_names[i])
-        array_for_file[i + len_array_for_file].append(begin_prices[i])
-        array_for_file[i + len_array_for_file].append(start_dates[i])
+        array_for_file[i].append(order_numbers[i])
+        array_for_file[i].append(purchase_volumes[i])
+        array_for_file[i].append(client_names[i])
+        array_for_file[i].append(begin_prices[i])
+        array_for_file[i].append(start_dates[i])
         try:
-            array_for_file[i + len_array_for_file].append(end_dates[i])
+            array_for_file[i].append(end_dates[i])
         except IndexError:
-            array_for_file[i + len_array_for_file].append("НЕТ")
+            array_for_file[i].append("НЕТ")
         stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
-        array_for_file[i + len_array_for_file].append(stroke)
-    driver.close()
+        array_for_file[i].append(stroke)
+    try:
+        driver.quit()
+    finally:
+        pass
 
 
 """
@@ -641,7 +646,8 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     path_to_statistics_search = path_to_admins_statistics + "/search.json"
     with open(path_to_statistics_search, 'r', encoding='utf8') as file:
         current_search_search = json.load(file)
-    bot_answer = await bot.send_message(callback.from_user.id, "Загрузка... Ожидайте")
+    bot_answer = await bot.send_message(callback.from_user.id, "Загрузка из Zakupki ... Ожидайте")
+    bot_answer2 = await bot.send_message(callback.from_user.id, "Загрузка из Sber ... Ожидайте")
     await FSMClient.searching.set()
     path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
     with open(path_to_current_client, 'r', encoding='utf8') as file:
@@ -671,19 +677,14 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
 
     """
     array_for_file = []
+    array_for_file2 = []
     driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
-    await parsing_zakupki(driver, array_for_file, callback, bot_answer, len(array_for_file))
-    try:
-        driver.quit()
-    finally:
-        pass
-    await asyncio.sleep(2)
-    driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
-    await parsing_sber(driver, array_for_file, callback, bot_answer, len(array_for_file))
-    try:
-        driver.quit()
-    finally:
-        pass
+    task1 = asyncio.create_task(parsing_zakupki(driver, array_for_file, callback, bot_answer))
+    driver2 = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
+    task2 = asyncio.create_task(parsing_sber(driver2, array_for_file2, callback, bot_answer2))
+    await task1
+    await task2
+    array_for_file = list(array_for_file + array_for_file2)
     """
     
         Конец парсинга

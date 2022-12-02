@@ -141,7 +141,15 @@ async def change_stat_clients(callback: types.CallbackQuery, state: FSMContext):
              "\nКол-во клиентов, скачавших запрос файлом за месяц:  " + \
              str(current_statistics_clients["Times_Use_Load_File_current_month"]) + \
              "\nКол-во клиентов, скачавших запрос файлом за все время:  " + \
-             str(current_statistics_clients["Times_Use_Load_File_all_time"])
+             str(current_statistics_clients["Times_Use_Load_File_all_time"]) + \
+             "\nКол-во клиентов, перешли по ссылке за день:  " + \
+             str(current_statistics_clients["Times_Use_Load_Link_current_day"]) + \
+             "\nКол-во клиентов, перешли по ссылке за неделю:  " + \
+             str(current_statistics_clients["Times_Use_Load_Link_current_week"]) + \
+             "\nКол-во клиентов, перешли по ссылке за месяц:  " + \
+             str(current_statistics_clients["Times_Use_Load_Link_current_month"]) + \
+             "\nКол-во клиентов, перешли по ссылке за все время:  " + \
+             str(current_statistics_clients["Times_Use_Load_Link_all_time"])
     await bot.send_message(callback.from_user.id, answer)
     bot_answer = await bot.send_message(callback.from_user.id, "Переход в главное меню...")
     await asyncio.sleep(3)
