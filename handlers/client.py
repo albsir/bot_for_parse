@@ -38,6 +38,7 @@ service_chrome = Service(path_to_driver)
 
 scheduler = AsyncIOScheduler()
 
+
 class FSMClient(StatesGroup):
     begin = State()
     techsup_begin = State()

@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 from aiogram import types
-from selenium.common import NoSuchElementException, TimeoutException, StaleElementReferenceException
+from selenium.common import NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException
 from selenium.webdriver import Chrome, Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
@@ -385,7 +385,11 @@ async def parsing_zakupki_for_mail(driver: Chrome, array_for_file: list, tender_
 
     url += "&af=on&priceFromGeneral=" + str(prices[0]) + \
            "&priceToGeneral=" + str(prices[1]) + "&currencyIdGeneral=-1"
-    driver.get(url)
+    try:
+        driver.get(url)
+    except WebDriverException:
+        await asyncio.sleep(2)
+        driver.get(url)
     pages = driver.find_element(By.CLASS_NAME, "paginator.align-self-center.m-0")
     pages_new = pages.find_elements(By.CLASS_NAME, "page")
     try:
@@ -474,7 +478,11 @@ async def parsing_sber_for_mail(driver: Chrome, array_for_file: list, tender_nam
     path_to_current_client_parsing = path_to_parsing + "/" + name_file
     with open(path_to_current_client_parsing, 'r', encoding='utf8') as file:
         current_client_parsing = json.load(file)
-    driver.get("https://www.sberbank-ast.ru/")
+    try:
+        driver.get("https://www.sberbank-ast.ru/")
+    except WebDriverException:
+        await asyncio.sleep(2)
+        driver.get("https://www.sberbank-ast.ru/")
     await asyncio.sleep(2)
     try:
         quote = driver.find_element(By.CLASS_NAME, "master_open_content")
@@ -487,7 +495,12 @@ async def parsing_sber_for_mail(driver: Chrome, array_for_file: list, tender_nam
     quote = quote.find_element(By.CLASS_NAME, "default_search_border")
     quote = quote.find_element(By.ID, "txtUnitedPurchaseSearch")
     quote.clear()
-    quote.send_keys(tender_name, Keys.ENTER)
+    try:
+        quote.send_keys(tender_name, Keys.ENTER)
+    except:
+        print("err 501 parsing")
+        await asyncio.sleep(1)
+        quote.send_keys(tender_name, Keys.ENTER)
     button_filter = driver.find_element(By.ID, "filters")
     button_filter = button_filter.find_element(By.CLASS_NAME, "element-in-one-row.simple-button.orange-background")
     button_filter.click()
