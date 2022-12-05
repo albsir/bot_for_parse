@@ -10,25 +10,21 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 from aiogram.utils.exceptions import InvalidQueryID
-from selenium.common import NoSuchElementException, TimeoutException, StaleElementReferenceException
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver import Chrome, Keys
-from selenium.webdriver.common.by import By
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from selenium.webdriver import Chrome
 from urlvalidator import URLValidator, ValidationError
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from handlers import admin
 from create_bot import bot
 from keyboards import client_kb
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from handlers import parsing
 
 options = webdriver.ChromeOptions()
 options.add_argument('--no-sandbox')
 options.add_argument("--disable-blink-features=AutomationControlled")
 options.add_argument('--headless')
 options.add_argument('--disable-dev-shm-usage')
-
 cb_modify_search = CallbackData('post', 'msg_text')
 
 path_to_driver = os.getcwd() + "/" + "drivers/chromedriver.exe"
@@ -37,8 +33,10 @@ path_to_admins_statistics = os.getcwd() + "/" + "json/admins/statistics"
 path_to_admins_settings = os.getcwd() + "/" + "json/admins/settings"
 path_to_admins_techsup = os.getcwd() + "/" + "json/admins/techsup"
 path_to_admins_settings_ban_users = path_to_admins_settings + "/" + "ban_users.json"
+path_to_parsing = os.getcwd() + "/" + "json/parsing"
 service_chrome = Service(path_to_driver)
 
+scheduler = AsyncIOScheduler()
 
 class FSMClient(StatesGroup):
     begin = State()
@@ -49,286 +47,6 @@ class FSMClient(StatesGroup):
     search_begin_max_price = State()
     searching = State()
     add_tender_place_begin = State()
-
-
-async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.CallbackQuery,
-                          bot_answer: types.Message):
-    global path_to_clients
-    await bot_answer.edit_text("Загрузка из zakupki.gov.ru .")
-    path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
-    with open(path_to_current_client, 'r', encoding='utf8') as file:
-        current_client_search = json.load(file)
-    url = "https://zakupki.gov.ru/" \
-          "epz/order/extendedsearch/results.html?searchString=" + current_client_search["message_for_search"] + \
-          "&morphology=on" \
-          "&search-filter=Дате+размещения&pageNumber=1&sortDirection=false&recordsPerPage=_10" \
-          "&showLotsInfoHidden=false&sortBy=UPDATE_DATE"
-
-    if current_client_search["modify_button"][0] == 1:
-        url += "&fz44=on"
-    if current_client_search["modify_button"][1] == 1:
-        url += "&fz223=on"
-    if current_client_search["modify_button"][2] == 1:
-        url += "&fz94=on"
-    if current_client_search["modify_button"][3] == 1:
-        url += "&ppRf615=on"
-
-    url += "&af=on&priceFromGeneral=" + str(current_client_search["price_min"]) + \
-           "&priceToGeneral=" + str(current_client_search["price_max"]) + "&currencyIdGeneral=-1"
-    driver.get(url)
-    pages = driver.find_element(By.CLASS_NAME, "paginator.align-self-center.m-0")
-    pages_new = pages.find_elements(By.CLASS_NAME, "page")
-    await bot_answer.edit_text("Загрузка из zakupki.gov.ru ..")
-    try:
-        pages_count = int(pages_new[len(pages_new) - 1].text)
-    except IndexError:
-        await bot.send_message(callback.from_user.id, "По вашему запросу нет результатов на zakupki.gov.ru")
-        return
-    order_numbers = []
-    purchase_volumes = []
-    client_names = []
-    begin_prices = []
-    start_dates = []
-    end_dates = []
-    links = []
-    await bot_answer.edit_text("Загрузка из zakupki.gov.ru ...")
-    for page in range(pages_count):
-        url = "https://zakupki.gov.ru/" \
-              "epz/order/extendedsearch/results.html?searchString=" + current_client_search["message_for_search"] + \
-              "&morphology=on" \
-              "&search-filter=Дате+размещения&pageNumber=" + \
-              str(page + 1) + "&sortDirection=false&recordsPerPage=_10" \
-                              "&showLotsInfoHidden=false&sortBy=UPDATE_DATE"
-
-        if current_client_search["modify_button"][0] == 1:
-            url += "&fz44=on"
-        if current_client_search["modify_button"][1] == 1:
-            url += "&fz223=on"
-        if current_client_search["modify_button"][2] == 1:
-            url += "&fz94=on"
-        if current_client_search["modify_button"][3] == 1:
-            url += "&ppRf615=on"
-
-        url += "&af=on&priceFromGeneral=" + str(current_client_search["price_min"]) + \
-               "&priceToGeneral=" + str(current_client_search["price_max"]) + "&currencyIdGeneral=-1"
-        driver.get(url)
-        result_total = driver.find_element(By.CLASS_NAME, "search-results__total")
-        try:
-            result_total_int = int(result_total.text[:result_total.text.find(' ')])
-        except ValueError:
-            print(result_total.text)
-            return
-        quotes = driver.find_elements(By.CLASS_NAME, "search-registry-entry-block.box-shadow-search-input")
-        for quote in quotes:
-            quote_number = quote.find_element(By.CLASS_NAME, "registry-entry__header-mid__number")
-            order_numbers.append(quote_number.text)
-            quote_purchase_volume = quote.find_element(By.CLASS_NAME, "registry-entry__body-value")
-            purchase_volumes.append(quote_purchase_volume.text)
-            quote_client_name = quote.find_element(By.CLASS_NAME, "registry-entry__body-href")
-            client_names.append(quote_client_name.text)
-            quote_begin_price = quote.find_element(By.CLASS_NAME, "price-block__value")
-            begin_prices.append(quote_begin_price.text)
-
-            quote_second = quote.find_element(By.CLASS_NAME, "data-block.mt-auto")
-            quote_dates = quote_second.find_elements(By.CLASS_NAME, "data-block__value")
-            i = 0
-            for quote_date in quote_dates:
-                if i == 1:
-                    i += 1
-                elif i == 0:
-                    start_dates.append(quote_date.text)
-                    i += 1
-                else:
-                    end_dates.append(quote_date.text)
-            quote_link = quote_number.find_element(By.CSS_SELECTOR, "div.registry-entry__header-mid__number [href]")
-            links.append(quote_link.get_attribute('href'))
-            await bot_answer.edit_text("Загружено " + str(len(order_numbers)) +
-                                       " заявок из " + str(result_total_int) + " с сайта zakupki.gov.ru")
-            await asyncio.sleep(1)
-    for i in range(len(order_numbers)):
-        array_for_file.append([])
-        array_for_file[i].append(order_numbers[i])
-        array_for_file[i].append(purchase_volumes[i])
-        array_for_file[i].append(client_names[i])
-        array_for_file[i].append(begin_prices[i] + " руб")
-        array_for_file[i].append(start_dates[i])
-        try:
-            array_for_file[i].append(end_dates[i])
-        except IndexError:
-            array_for_file[i].append("НЕТ")
-        stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
-        array_for_file[i].append(stroke)
-    try:
-        driver.quit()
-    finally:
-        pass
-
-
-async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.CallbackQuery,
-                       bot_answer: types.Message):
-    global path_to_clients
-    await asyncio.sleep(2)
-    path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
-    with open(path_to_current_client, 'r', encoding='utf8') as file:
-        current_client_search = json.load(file)
-    await bot_answer.edit_text("Загрузка из sberbank-ast.ru .")
-    driver.get("https://www.sberbank-ast.ru/")
-    await asyncio.sleep(3)
-    quote = driver.find_element(By.CLASS_NAME, "master_open_content")
-    quote = quote.find_element(By.CLASS_NAME, "container.default_search")
-    quote = quote.find_element(By.CLASS_NAME, "col-xs-8.col-md-8")
-    quote = quote.find_element(By.CLASS_NAME, "default_search_border")
-    quote = quote.find_element(By.ID, "txtUnitedPurchaseSearch")
-    quote.clear()
-    quote.send_keys(str(current_client_search["message_for_search"]), Keys.ENTER)
-    try:
-        element = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "xmlData")))
-    except:
-        print("err")
-    button_filter = driver.find_element(By.ID, "filters")
-    button_filter = button_filter.find_element(By.CLASS_NAME, "element-in-one-row.simple-button.orange-background")
-    button_filter.click()
-    await asyncio.sleep(1)
-    filters = driver.find_element(By.CLASS_NAME, "filter-table")
-    filters = filters.find_elements(By.CLASS_NAME, "range-filter-content")
-    i = 0
-    price = [str(current_client_search["price_min"]), str(current_client_search["price_max"])]
-    await bot_answer.edit_text("Загрузка из sberbank-ast.ru ..")
-    await asyncio.sleep(2)
-    for item in filters:
-        start_cena = item.find_element(By.CLASS_NAME, "numeric.mustBeCleaned.esfilter-input")
-        start_cena.send_keys(price[i])
-        i += 1
-    etap_provedeniya = driver.find_element(By.CLASS_NAME, "filter-table")
-    etap_provedeniya = etap_provedeniya.find_elements(By.CLASS_NAME, "last")
-    for item in etap_provedeniya:
-        item = item.find_element(By.CLASS_NAME, "shortdict-filter-choose-button")
-        item.click()
-        await asyncio.sleep(1)
-        break
-    etap_provedeniya = driver.find_element(By.ID, "shortDictionaryModal")
-    etap_provedeniya = etap_provedeniya.find_element(By.CLASS_NAME, "modal-content-body")
-    etap_provedeniya = etap_provedeniya.find_elements(By.CLASS_NAME, "mustBeCleaned")
-    id_number = 0
-    for item in etap_provedeniya:
-        if item.text.find("Подача") >= 0:
-            id_number = int(item.get_attribute('id')) - 3
-            break
-    etap_provedeniya = driver.find_element(By.ID, "shortDictionaryModal")
-    etap_provedeniya = etap_provedeniya.find_element(By.CLASS_NAME, "modal-content-body")
-    etap_provedeniya = etap_provedeniya.find_element(By.CLASS_NAME, "modal-content-scroller")
-    await bot_answer.edit_text("Загрузка из sberbank-ast.ru ...")
-    try:
-        etap_provedeniya = etap_provedeniya.find_element(By.ID, str(id_number))
-    except NoSuchElementException:
-        print("Не найдено активных заявок")
-        return
-    etap_provedeniya.click()
-    await asyncio.sleep(1)
-    etap_provedeniya = driver.find_element(By.ID, "shortDictionaryModal")
-    etap_provedeniya = etap_provedeniya.find_element(By.CLASS_NAME, "modal-footer")
-    etap_provedeniya = etap_provedeniya.find_element(By.CLASS_NAME, "simple-button.green-background")
-    etap_provedeniya.click()
-    await asyncio.sleep(1)
-    search_beg = driver.find_element(By.ID, "specialFilters")
-    search_beg = search_beg.find_element(By.ID, "OkCansellBtns")
-    search_beg = search_beg.find_element(By.CLASS_NAME, "simple-button.green-background")
-    search_beg.click()
-    await asyncio.sleep(1)
-    check_counts = driver.find_element(By.ID, "statisticAreaContainer")
-    check_counts = check_counts.find_element(By.ID, "statisticArea")
-    check_counts = check_counts.find_element(By.CLASS_NAME, "statsPH")
-    request_counts = int(check_counts.text.replace(' ', ''))
-    pages = driver.find_element(By.ID, "pager")
-    pages = pages.find_elements(By.ID, "pageButton")
-    pages = int(pages[len(pages) - 3].text)
-    begin_prices = []
-    client_names = []
-    purchase_volumes = []
-    start_dates = []
-    end_dates = []
-    order_numbers = []
-    links = []
-    k = 0
-    for page in range(pages):
-        if page != 0:
-            driver.execute_script("window.scrollTo(0, 0)")
-            await asyncio.sleep(1)
-            new_page = driver.find_element(By.ID, "pager")
-            new_page = new_page.find_elements(By.ID, "pageButton")
-            new_page = new_page[len(new_page) - 2].find_element(By.CLASS_NAME, "pager-button.pagerElem")
-            ActionChains(driver).move_to_element(new_page).click().perform()
-            await asyncio.sleep(2)
-        requests = driver.find_element(By.ID, "resultTable")
-        requests = requests.find_elements(By.CLASS_NAME, "purch-reestr-tbl-div")
-        for request in requests:
-            try:
-                stroke = "№ " + request.find_element(By.CLASS_NAME, "es-el-code-term").text
-                order_numbers.append(stroke)
-                stroke = request.find_element(By.CLASS_NAME, "es-el-amount").text
-                stroke = stroke[:stroke.find('.')]
-                stroke += " руб"
-            except StaleElementReferenceException:
-                stroke = "None"
-            begin_prices.append(stroke)
-            try:
-                client_names.append(request.find_element(By.CLASS_NAME, "es-el-org-name").text)
-            except StaleElementReferenceException:
-                client_names.append("None")
-            try:
-                purchase_volumes.append(request.find_element(By.CLASS_NAME, "es-el-name").text)
-            except StaleElementReferenceException:
-                purchase_volumes.append("None")
-            try:
-                stroke = request.find_element(By.CSS_SELECTOR, "span[content='leaf:PublicDate']").text
-                stroke = stroke[:stroke.find(' ')]
-            except StaleElementReferenceException:
-                stroke = "None"
-            start_dates.append(stroke)
-            try:
-                end_dates.append(request.find_element(By.CSS_SELECTOR, "span[content='leaf:EndDate']").text)
-            except StaleElementReferenceException:
-                end_dates.append("None")
-            await asyncio.sleep(1)
-            option_buttons = request.find_element(By.CLASS_NAME, "dotted-botom.last")
-            option_buttons = option_buttons.find_element(By.CSS_SELECTOR,
-                                                         "input[class='link-button'][value ='/  Просмотр']")
-            option_buttons.click()
-            await asyncio.sleep(1)
-            try:
-                myElem = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME, 'submenu-link')))
-            except TimeoutException:
-                driver.refresh()
-            driver.switch_to.window(driver.window_handles[-1])
-            links.append(driver.current_url)
-            await bot_answer.edit_text("Загружено " + str(len(order_numbers)) +
-                                       " заявок из " + str(request_counts) + " с сайта sberbank-ast.ru")
-            driver.close()
-            try:
-                driver.switch_to.window(driver.window_handles[0])
-            finally:
-                pass
-            await asyncio.sleep(1)
-        k += 1
-    for i in range(len(order_numbers)):
-        if order_numbers[i] == "":
-            continue
-        array_for_file.append([])
-        array_for_file[i].append(order_numbers[i])
-        array_for_file[i].append(purchase_volumes[i])
-        array_for_file[i].append(client_names[i])
-        array_for_file[i].append(begin_prices[i])
-        array_for_file[i].append(start_dates[i])
-        try:
-            array_for_file[i].append(end_dates[i])
-        except IndexError:
-            array_for_file[i].append("НЕТ")
-        stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
-        array_for_file[i].append(stroke)
-    try:
-        driver.quit()
-    finally:
-        pass
 
 
 """
@@ -646,6 +364,7 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     path_to_statistics_search = path_to_admins_statistics + "/search.json"
     with open(path_to_statistics_search, 'r', encoding='utf8') as file:
         current_search_search = json.load(file)
+    scheduler.pause()
     bot_answer = await bot.send_message(callback.from_user.id, "Загрузка из Zakupki ... Ожидайте")
     bot_answer2 = await bot.send_message(callback.from_user.id, "Загрузка из Sber ... Ожидайте")
     await FSMClient.searching.set()
@@ -671,25 +390,18 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     print(path_to_driver)
     await callback.answer("Начат поиск", cache_time=80)
 
-    """
-
-       ПАРСИНГ zakupki.gov.ru
-
-    """
-    array_for_file = []
+    array_for_file1 = []
     array_for_file2 = []
     driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
-    task1 = asyncio.create_task(parsing_zakupki(driver, array_for_file, callback, bot_answer))
+    task1 = asyncio.create_task(parsing.parsing_zakupki(driver, array_for_file1, callback, bot_answer))
     driver2 = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
-    task2 = asyncio.create_task(parsing_sber(driver2, array_for_file2, callback, bot_answer2))
+    task2 = asyncio.create_task(parsing.parsing_sber(driver2, array_for_file2, callback, bot_answer2))
     await task1
     await task2
-    array_for_file = list(array_for_file + array_for_file2)
-    """
-    
-        Конец парсинга
-    
-    """
+    while not task1.done() and not task2.done():
+        print("a")
+    array_for_file = list(array_for_file1 + array_for_file2)
+
     if current_client_search["modify_button"][4] == 1:
         df = pd.DataFrame(array_for_file, columns=['Заявка №', 'Объект закупки', 'Заказчик', 'Начальная цена',
                                                    'Дата размещения', 'Окончание подачи заявок', 'Ссылка на заявку'])
@@ -703,7 +415,6 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                 writer.sheets['my_analysis'].set_column(col_idx, col_idx, column_width)
         keyboard = await client_kb.answer_download_search()
         await bot.send_message(callback.from_user.id, "Файл загружен", reply_markup=keyboard)
-
     else:
         for i in range(len(array_for_file)):
             stroke = array_for_file[i][6]
@@ -718,6 +429,55 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                                    answer,
                                    reply_markup=keyboard, parse_mode="Markdown")
             await asyncio.sleep(1)
+    try:
+        driver.quit()
+    finally:
+        pass
+    try:
+        driver2.quit()
+    finally:
+        pass
+    path_to_current_client_parsing = path_to_parsing + "/" + str(callback.from_user.id) + ".json"
+    try:
+        with open(path_to_current_client_parsing, 'r', encoding='utf8') as file:
+            current_client_parsing = json.load(file)
+        current_index_message_and_active = 0
+        have_tender = False
+        for i in range(len(array_for_file)):
+            if current_client_search["message_for_search"] == current_client_parsing["active_tenders"]:
+                current_index_message_and_active = i
+                have_tender = True
+                break
+        if have_tender:
+            for i in range(len(array_for_file)):
+                have_tender_view_yet = False
+                for k in range(len(current_client_search["tenders_view_yet"][current_index_message_and_active])):
+                    if array_for_file[i][0] == \
+                            current_client_search["tenders_view_yet"][current_index_message_and_active][k]:
+                        have_tender_view_yet = True
+                        break
+                if not have_tender_view_yet:
+                    current_client_search["tenders_view_yet"][current_index_message_and_active].append(
+                        array_for_file[i][0])
+        else:
+            current_client_parsing["active_tenders"].append(current_client_search["message_for_search"])
+            current_client_parsing["zakon"].append(current_client_search["modify_button"])
+            current_client_parsing["prices"].append(
+                [current_client_search["price_min"], current_client_search["price_max"]])
+            current_client_parsing["tenders_view_yet"].append([])
+            for i in range(len(array_for_file)):
+                current_client_parsing["tenders_view_yet"][-1].append(array_for_file[i][0])
+    except FileNotFoundError:
+        current_client_parsing = {"active_tenders": [current_client_search["message_for_search"]],
+                                  "tenders_view_yet": [], "zakon": [], "prices": [[current_client_search["price_min"],
+                                                                                   current_client_search["price_max"]]]}
+        current_client_parsing["zakon"].append(current_client_search["modify_button"])
+        current_client_parsing["tenders_view_yet"].append([])
+        for i in range(len(array_for_file)):
+            current_client_parsing["tenders_view_yet"][0].append(array_for_file[i][0])
+    scheduler.resume()
+    with open(path_to_current_client_parsing, 'w', encoding='utf8') as file:
+        json.dump(current_client_parsing, file, ensure_ascii=False)
 
 
 async def download_search_file_f(callback: types.CallbackQuery, state: FSMContext):
@@ -754,6 +514,27 @@ async def load_link_search_f(callback: types.CallbackQuery, state: FSMContext):
     with open(path_to_statistics_clients, 'w', encoding='utf8') as file:
         json.dump(current_statistics_clients, file, ensure_ascii=False)
     await callback.answer()
+    await cansel_handler_callback_f(callback, state)
+
+
+async def unsub_tender(callback: types.CallbackQuery, state: FSMContext):
+    global path_to_parsing
+    path_to_current_client_parsing = path_to_parsing + "/" + str(callback.from_user.id) + ".json"
+    tender_name = callback.message.text
+    tender_name = tender_name[tender_name.find(':') + 2:]
+    tender_name = tender_name[:tender_name.find("новая") - 2]
+    with open(path_to_current_client_parsing, 'r', encoding='utf8') as file:
+        current_client_parsing = json.load(file)
+    for i in range(len(current_client_parsing["active_tenders"])):
+        if tender_name in current_client_parsing["active_tenders"][i]:
+            current_client_parsing["active_tenders"].pop(i)
+            current_client_parsing["tenders_view_yet"].pop(i)
+            current_client_parsing["zakon"].pop(i)
+            current_client_parsing["prices"].pop(i)
+            with open(path_to_current_client_parsing, 'w', encoding='utf8') as file:
+                json.dump(current_client_parsing, file, ensure_ascii=False)
+            break
+    await callback.answer("Вы отписались от обновления тендера: ", tender_name)
     await cansel_handler_callback_f(callback, state)
 
 
@@ -819,7 +600,7 @@ def register_handlers_client(dp: Dispatcher):
     dp.register_callback_query_handler(add_tender_place_change_menu_f, text='add_tender_place_change_menu',
                                        state=None)
     # Отмена
-    dp.register_message_handler(back_menu_after_message_f, commands="/cansel", state="*")
+    dp.register_message_handler(back_menu_after_message_f, commands="cansel", state="*")
     dp.register_callback_query_handler(cansel_handler_callback_f, text='cansel',
                                        state="*")
     # Работа с тех поддержкой
@@ -837,5 +618,7 @@ def register_handlers_client(dp: Dispatcher):
                                        state=FSMClient.searching)
     dp.register_callback_query_handler(load_link_search_f, text='load_link_search_result',
                                        state=FSMClient.searching)
+    dp.register_callback_query_handler(unsub_tender, text='load_link_search_result_unsub',
+                                       state="*")
     # Работа с добавлением тендера
     dp.register_message_handler(add_tender_place_get_link_f, commands=None, state=FSMClient.add_tender_place_begin)

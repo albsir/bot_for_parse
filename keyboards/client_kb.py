@@ -49,6 +49,14 @@ async def answer_search_link(link: str):
     return kb_inline
 
 
+async def answer_search_link_and_unsub(link: str):
+    kb_inline = InlineKeyboardMarkup()
+    b1 = InlineKeyboardButton(text='🎉 Перейти', url=link, callback_data="load_link_search_result")
+    b2 = InlineKeyboardButton(text='🎉 Отписаться', callback_data="load_link_search_result_unsub")
+    kb_inline.add(b1).add(b2)
+    return kb_inline
+
+
 async def answer_download_search():
     kb_inline = InlineKeyboardMarkup()
     b = InlineKeyboardButton(text='⬇ Скачать', callback_data="download_search_result")
