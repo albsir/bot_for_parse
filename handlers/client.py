@@ -333,7 +333,9 @@ async def search_after_get_max_price_f(message: types.Message, state: FSMContext
             json.dump(current_client_search, file, ensure_ascii=False)
         keyboard = await client_kb.answer_after_chose_search_f(current_client_search["modify_button"])
         await bot.send_message(message.from_user.id,
-                               "Выберите какие пункты должны быть включены и нажмите кнопку поиск\nРЕКОМЕНДУЕМ" +
+                               "Выберите какие пункты должны быть включены и нажмите кнопку поиск\n"
+                               "Законы работают только на сайте Zakupki"
+                               "\nРЕКОМЕНДУЕМ"
                                " включить опцию <загрузить файлом>, если, по вашему запросу, может быть много заявок",
                                reply_markup=keyboard)
     except:
@@ -360,6 +362,13 @@ async def search_chose_buttons_f(callback: types.CallbackQuery, state: FSMContex
     await callback.answer()
 
 
+async def test(message: types.Message, state: FSMContext):
+    driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
+    array_for_file = []
+    bot_answer = await bot.send_message(message.chat.id, "Загрузка")
+    await parsing.parsing_zakazrf(driver, array_for_file, message.chat.id, bot_answer)
+
+
 async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     global path_to_clients, path_to_admins_statistics
     path_to_statistics_search = path_to_admins_statistics + "/search.json"
@@ -368,6 +377,7 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
     scheduler.pause()
     bot_answer = await bot.send_message(callback.from_user.id, "Загрузка из Zakupki ... Ожидайте")
     bot_answer2 = await bot.send_message(callback.from_user.id, "Загрузка из Sber ... Ожидайте")
+    bot_answer3 = await bot.send_message(callback.from_user.id, "Загрузка из zakazrf ... Ожидайте")
     await FSMClient.searching.set()
     path_to_current_client = path_to_clients + "/" + str(callback.from_user.id) + "/search.json"
     with open(path_to_current_client, 'r', encoding='utf8') as file:
@@ -393,15 +403,19 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
 
     array_for_file1 = []
     array_for_file2 = []
+    array_for_file3 = []
     driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
     task1 = asyncio.create_task(parsing.parsing_zakupki(driver, array_for_file1, callback, bot_answer))
     driver2 = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
     task2 = asyncio.create_task(parsing.parsing_sber(driver2, array_for_file2, callback, bot_answer2))
+    driver3 = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
+    task3 = asyncio.create_task(parsing.parsing_zakazrf(driver3, array_for_file3, callback.from_user.id, bot_answer3))
     await task1
     await task2
-    while not task1.done() and not task2.done():
-        print("a")
-    array_for_file = list(array_for_file1 + array_for_file2)
+    await task3
+    while not task1.done() and not task2.done() and not task3.done():
+        pass
+    array_for_file = list(array_for_file1 + array_for_file2 + array_for_file3)
 
     if current_client_search["modify_button"][4] == 1:
         df = pd.DataFrame(array_for_file, columns=['Заявка №', 'Объект закупки', 'Заказчик', 'Начальная цена',
@@ -415,7 +429,9 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
                 col_idx = df.columns.get_loc(column)
                 writer.sheets['my_analysis'].set_column(col_idx, col_idx, column_width)
         keyboard = await client_kb.answer_download_search()
-        await bot.send_message(callback.from_user.id, "Файл загружен", reply_markup=keyboard)
+        await bot.send_message(callback.from_user.id, "Файл загружен\nПРЕДУПРЕЖДЕНИЕ:\n"
+                                                      "Ответ на нажатие кнопки возможен с задержкой,"
+                                                      "если вы нажали кнопку, ожидайте.", reply_markup=keyboard)
     else:
         for i in range(len(array_for_file)):
             stroke = array_for_file[i][6]
@@ -429,13 +445,17 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
             await bot.send_message(callback.from_user.id,
                                    answer,
                                    reply_markup=keyboard, parse_mode="Markdown")
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
     try:
         driver.quit()
     finally:
         pass
     try:
         driver2.quit()
+    finally:
+        pass
+    try:
+        driver3.quit()
     finally:
         pass
     path_to_current_client_parsing = path_to_parsing + "/" + str(callback.from_user.id) + ".json"
@@ -445,20 +465,22 @@ async def search_begin_f(callback: types.CallbackQuery, state: FSMContext):
         current_index_message_and_active = 0
         have_tender = False
         for i in range(len(array_for_file)):
-            if current_client_search["message_for_search"] == current_client_parsing["active_tenders"]:
+            if current_client_search["message_for_search"] in current_client_parsing["active_tenders"][i]:
                 current_index_message_and_active = i
                 have_tender = True
                 break
         if have_tender:
+            current_client_parsing["prices"][current_index_message_and_active] = \
+                [current_client_search["price_min"], current_client_search["price_max"]]
             for i in range(len(array_for_file)):
                 have_tender_view_yet = False
-                for k in range(len(current_client_search["tenders_view_yet"][current_index_message_and_active])):
+                for k in range(len(current_client_parsing["tenders_view_yet"][current_index_message_and_active])):
                     if array_for_file[i][0] == \
-                            current_client_search["tenders_view_yet"][current_index_message_and_active][k]:
+                            current_client_parsing["tenders_view_yet"][current_index_message_and_active][k]:
                         have_tender_view_yet = True
                         break
                 if not have_tender_view_yet:
-                    current_client_search["tenders_view_yet"][current_index_message_and_active].append(
+                    current_client_parsing["tenders_view_yet"][current_index_message_and_active].append(
                         array_for_file[i][0])
         else:
             current_client_parsing["active_tenders"].append(current_client_search["message_for_search"])
@@ -499,7 +521,7 @@ async def download_search_file_f(callback: types.CallbackQuery, state: FSMContex
     path_client_result += current_client_search["message_for_search"] + '.xlsx'
     await callback.message.answer_document(open(path_client_result, 'rb'))
     os.remove(path_client_result)
-    await callback.answer()
+    await callback.answer(cache_time=40)
     await cansel_handler_callback_f(callback, state)
 
 
@@ -588,6 +610,7 @@ async def add_tender_place_get_link_f(message: types.Message, state: FSMContext)
 
 
 def register_handlers_client(dp: Dispatcher):
+    dp.register_message_handler(test, commands="test", state="*")
     # Начало
     dp.register_message_handler(answer_pre_start_f, commands="start", state="*")
     dp.register_callback_query_handler(change_menu_search_f, text='search_change_menu',

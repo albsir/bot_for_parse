@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import os
 from aiogram import types
@@ -41,7 +42,7 @@ async def mail_parsing(name_file: str):
     for tender in range(len(current_client_parsing["active_tenders"])):
         array_for_file = []
         array_for_file2 = []
-
+        array_for_file3 = []
         driver = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
         task1 = asyncio.create_task(parsing_zakupki_for_mail(driver,
                                                              array_for_file,
@@ -57,11 +58,19 @@ async def mail_parsing(name_file: str):
                                                           current_client_parsing["prices"][tender],
                                                           name_file,
                                                           tender))
+        driver3 = Chrome(executable_path=path_to_driver, options=options, service=service_chrome)
+        task3 = asyncio.create_task(parsing_sber_for_mail(driver3,
+                                                          array_for_file3,
+                                                          current_client_parsing["active_tenders"][tender],
+                                                          current_client_parsing["prices"][tender],
+                                                          name_file,
+                                                          tender))
         await task1
         await task2
-        while not task1.done() and not task2.done():
-            print("a")
-        array_for_file = list(array_for_file + array_for_file2)
+        await task3
+        while not task1.done() and not task2.done() and not task3.done():
+            pass
+        array_for_file = list(array_for_file + array_for_file2 + array_for_file3)
         for i in range(len(array_for_file)):
             current_client_parsing["tenders_view_yet"][tender].append(array_for_file[i][0])
             stroke = array_for_file[i][6]
@@ -83,6 +92,10 @@ async def mail_parsing(name_file: str):
             pass
         try:
             driver2.quit()
+        finally:
+            pass
+        try:
+            driver3.quit()
         finally:
             pass
     with open(path_to_current_client_parsing, 'w', encoding='utf8') as file:
@@ -113,7 +126,11 @@ async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.
 
     url += "&af=on&priceFromGeneral=" + str(current_client_search["price_min"]) + \
            "&priceToGeneral=" + str(current_client_search["price_max"]) + "&currencyIdGeneral=-1"
-    driver.get(url)
+    try:
+        driver.get(url)
+    except MaxRetryError:
+        await asyncio.sleep(2)
+        driver.get(url)
     pages = driver.find_element(By.CLASS_NAME, "paginator.align-self-center.m-0")
     pages_new = pages.find_elements(By.CLASS_NAME, "page")
     await bot_answer.edit_text("Загрузка из zakupki.gov.ru ..")
@@ -161,6 +178,9 @@ async def parsing_zakupki(driver: Chrome, array_for_file: list, callback: types.
                 quote_number = quote.find_element(By.CLASS_NAME, "registry-entry__header-mid__number")
             except MaxRetryError:
                 continue
+            except WebDriverException:
+                await asyncio.sleep(1)
+                quote_number = quote.find_element(By.CLASS_NAME, "registry-entry__header-mid__number")
             order_numbers.append(quote_number.text)
             quote_purchase_volume = quote.find_element(By.CLASS_NAME, "registry-entry__body-value")
             purchase_volumes.append(quote_purchase_volume.text)
@@ -210,7 +230,12 @@ async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.Cal
     await bot_answer.edit_text("Загрузка из sberbank-ast.ru .")
     driver.get("https://www.sberbank-ast.ru/")
     await asyncio.sleep(3)
-    quote = driver.find_element(By.CLASS_NAME, "master_open_content")
+    try:
+        quote = driver.find_element(By.CLASS_NAME, "master_open_content")
+    except NoSuchElementException:
+        driver.get("https://www.sberbank-ast.ru/")
+        await asyncio.sleep(1.5)
+        quote = driver.find_element(By.CLASS_NAME, "master_open_content")
     quote = quote.find_element(By.CLASS_NAME, "container.default_search")
     quote = quote.find_element(By.CLASS_NAME, "col-xs-8.col-md-8")
     quote = quote.find_element(By.CLASS_NAME, "default_search_border")
@@ -354,6 +379,201 @@ async def parsing_sber(driver: Chrome, array_for_file: list, callback: types.Cal
         array_for_file[i].append(purchase_volumes[i])
         array_for_file[i].append(client_names[i])
         array_for_file[i].append(begin_prices[i])
+        array_for_file[i].append(start_dates[i])
+        try:
+            array_for_file[i].append(end_dates[i])
+        except IndexError:
+            array_for_file[i].append("НЕТ")
+        stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
+        array_for_file[i].append(stroke)
+
+
+async def parsing_zakazrf(driver: Chrome, array_for_file: list, user_id: int,
+                          bot_answer: types.Message):
+    global path_to_clients
+    await asyncio.sleep(2)
+    path_to_current_client = path_to_clients + "/" + str(user_id) + "/search.json"
+    with open(path_to_current_client, 'r', encoding='utf8') as file:
+        current_client_search = json.load(file)
+    await bot_answer.edit_text("Загрузка из http://zakazrf.ru/ .")
+    url = "http://zakazrf.ru/NotificationEx/Index?" \
+          "Filter=1&FastFilter=" + current_client_search["message_for_search"] + \
+          "&StartPriceFrom=" + str(current_client_search["price_min"]) + \
+          "&StartPriceTo=" + str(current_client_search["price_max"]) + "&ExpandFilter=1"
+    driver.get(url)
+    await asyncio.sleep(1)
+    await bot_answer.edit_text("Загрузка из http://zakazrf.ru/ ..")
+    total_counts = driver.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/input[3]")
+    pages = driver.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/input[2]")
+    pages_int = int(pages.get_attribute('value'))
+    total_counts_int = int(total_counts.get_attribute('value'))
+    order_numbers = []
+    purchase_volumes = []
+    client_names = []
+    begin_prices = []
+    start_dates = []
+    end_dates = []
+    links = []
+    current_counts = 0
+    stop_bool = False
+    await bot_answer.edit_text("Загрузка из http://zakazrf.ru/ ...")
+    for page in range(pages_int):
+        quote = driver.find_element(By.ID, "TableListD0D6A13720E853F9")
+        numbers_pursh = quote.find_elements(By.CLASS_NAME, "RowAction")
+        for counts in range(2, 22, 1):
+            try:
+                await asyncio.sleep(0.1)
+                id_list = quote.find_element(By.XPATH,
+                                             "/html/body/div[4]/div/form/div/div[3]/div[2]/table/tbody/tr[" + str(
+                                                 counts) + "]")
+            except NoSuchElementException:
+                break
+            id_list = id_list.get_attribute('id')
+            id_list = id_list + "_act"
+            request = quote.find_elements(By.CLASS_NAME, id_list)
+            quote_status = request[1].text
+            if len(quote_status) > 1:
+                total_counts_int -= 1
+                continue
+            fz = request[0].text
+            try:
+                quote_number = numbers_pursh[counts - 2]
+            except MaxRetryError:
+                continue
+            end_data_check = request[10].text
+            day = end_data_check[:end_data_check.find('.')]
+            month = end_data_check[end_data_check.find('.') + 1:end_data_check.rfind('.')]
+            year = end_data_check[end_data_check.rfind('.') + 1: end_data_check.find(' ')]
+            end_data_check = datetime.datetime(int(year), int(month), int(day))
+            if end_data_check < datetime.datetime.today():
+                stop_bool = True
+                break
+            links.append(quote.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/div[2]/table/tbody/tr[" +
+                                            str(counts) + "]/td[2]/a").get_attribute('href'))
+            order_numbers.append(quote_number.text)
+            purchase_volumes.append(request[3].text)
+            begin_prices.append(request[4].text[:request[4].text.find(",")])
+            client_names.append(request[6].text)
+            start_dates.append(request[8].text)
+            end_dates.append(request[10].text)
+            current_counts += 1
+            await bot_answer.edit_text("Загружено " + str(current_counts) + " заявок из " + str(total_counts_int) +
+                                       ", с сайта http://zakazrf.ru/")
+        if stop_bool:
+            break
+        if page != pages_int - 1:
+            btn = driver.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/a[7]")
+            try:
+                btn.click()
+            except StaleElementReferenceException:
+                await asyncio.sleep(1)
+                btn.click()
+            await asyncio.sleep(1)
+    await bot_answer.edit_text("Загрузка из http://zakazrf.ru/ завершена")
+    for i in range(len(order_numbers)):
+        array_for_file.append([])
+        array_for_file[i].append(order_numbers[i])
+        array_for_file[i].append(purchase_volumes[i])
+        array_for_file[i].append(client_names[i])
+        array_for_file[i].append(begin_prices[i] + " руб")
+        array_for_file[i].append(start_dates[i])
+        try:
+            array_for_file[i].append(end_dates[i])
+        except IndexError:
+            array_for_file[i].append("НЕТ")
+        stroke = '=HYPERLINK("' + links[i] + '"' + ',"ОТКРЫТЬ")'
+        array_for_file[i].append(stroke)
+
+
+async def parsing_zakazrf_for_mail(driver: Chrome, array_for_file: list, tender_name: str,
+                                   prices: list, name_file: str, tender: int):
+    global path_to_parsing
+    await asyncio.sleep(2)
+    path_to_current_client_parsing = path_to_parsing + "/" + name_file
+    with open(path_to_current_client_parsing, 'r', encoding='utf8') as file:
+        current_client_parsing = json.load(file)
+    url = "http://zakazrf.ru/NotificationEx/Index?" \
+          "Filter=1&FastFilter=" + tender_name + \
+          "&StartPriceFrom=" + str(prices[0]) + \
+          "&StartPriceTo=" + str(prices[1]) + "&ExpandFilter=1"
+    driver.get(url)
+    await asyncio.sleep(1)
+    pages = driver.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/input[2]")
+    pages_int = int(pages.get_attribute('value'))
+    order_numbers = []
+    purchase_volumes = []
+    client_names = []
+    begin_prices = []
+    start_dates = []
+    end_dates = []
+    links = []
+    current_counts = 0
+    stop_bool = False
+    for page in range(pages_int):
+        quote = driver.find_element(By.ID, "TableListD0D6A13720E853F9")
+        numbers_pursh = quote.find_elements(By.CLASS_NAME, "RowAction")
+        for counts in range(2, 22, 1):
+            try:
+                await asyncio.sleep(0.1)
+                id_list = quote.find_element(By.XPATH,
+                                             "/html/body/div[4]/div/form/div/div[3]/div[2]/table/tbody/tr[" + str(
+                                                 counts) + "]")
+            except NoSuchElementException:
+                break
+            id_list = id_list.get_attribute('id')
+            id_list = id_list + "_act"
+            request = quote.find_elements(By.CLASS_NAME, id_list)
+            quote_status = request[1].text
+            if len(quote_status) > 1:
+                continue
+            fz = request[0].text
+            try:
+                quote_number = numbers_pursh[counts - 2]
+            except MaxRetryError:
+                continue
+            end_data_check = request[10].text
+            day = end_data_check[:end_data_check.find('.')]
+            month = end_data_check[end_data_check.find('.') + 1:end_data_check.rfind('.')]
+            year = end_data_check[end_data_check.rfind('.') + 1: end_data_check.find(' ')]
+            end_data_check = datetime.datetime(int(year), int(month), int(day))
+            if end_data_check < datetime.datetime.today():
+                stop_bool = True
+                break
+            have_tender_view_yet = False
+            for i in range(len(current_client_parsing["tenders_view_yet"][tender])):
+                if quote_number.text == \
+                        current_client_parsing["tenders_view_yet"][tender][i]:
+                    have_tender_view_yet = True
+                    break
+            if not have_tender_view_yet:
+                order_numbers.append(quote_number.text)
+            else:
+                continue
+            links.append(quote.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/div[2]/table/tbody/tr[" +
+                                            str(counts) + "]/td[2]/a").get_attribute('href'))
+            order_numbers.append(quote_number.text)
+            purchase_volumes.append(request[3].text)
+            begin_prices.append(request[4].text[:request[4].text.find(",")])
+            client_names.append(request[6].text)
+            start_dates.append(request[8].text)
+            end_dates.append(request[10].text)
+            current_counts += 1
+        if stop_bool:
+            break
+        if page != pages_int - 1:
+            btn = driver.find_element(By.XPATH, "/html/body/div[4]/div/form/div/div[3]/a[7]")
+            try:
+                btn.click()
+            except StaleElementReferenceException:
+                await asyncio.sleep(1)
+                btn.click()
+            await asyncio.sleep(1)
+    for i in range(len(order_numbers)):
+        array_for_file.append([])
+        array_for_file[i].append(order_numbers[i])
+        array_for_file[i].append(purchase_volumes[i])
+        array_for_file[i].append(client_names[i])
+        array_for_file[i].append(begin_prices[i] + " руб")
         array_for_file[i].append(start_dates[i])
         try:
             array_for_file[i].append(end_dates[i])
