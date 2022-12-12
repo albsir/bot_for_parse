@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 from aiogram import types
+from aiogram.utils.exceptions import RetryAfter
 from selenium.common import NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException
 from selenium.webdriver import Chrome, Keys
 from selenium.webdriver.common.action_chains import ActionChains
@@ -82,10 +83,16 @@ async def mail_parsing(name_file: str):
                       "\n*Заказчик*: " + array_for_file[i][2] + "\n*Начальная цена*: " + array_for_file[i][3] + \
                       "\n*Размещено*: " + array_for_file[i][4] + "\n*Окончание подачи заявок*: " \
                       + array_for_file[i][5] + "\n"
-            await bot.send_message(user_id,
-                                   answer,
-                                   reply_markup=keyboard, parse_mode="Markdown")
-            await asyncio.sleep(1)
+            try:
+                await bot.send_message(user_id,
+                                       answer,
+                                       reply_markup=keyboard, parse_mode="Markdown")
+                await asyncio.sleep(1)
+            except RetryAfter:
+                await asyncio.sleep(1)
+                await bot.send_message(user_id,
+                                       answer,
+                                       reply_markup=keyboard, parse_mode="Markdown")
         try:
             driver.quit()
         finally:
